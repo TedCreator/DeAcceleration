@@ -22,9 +22,13 @@ def returnMouseReg():
     entries.append(data)
     return entries
 
+
+# May want to add more ways to check
 def isAccelOn():
     try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Mouse") as key:
+        key = winreg.HKEY_CURRENT_USER
+        subkey = r"Control Panel\Mouse"
+        with winreg.OpenKey(key, subkey) as key:
             acceleration = int(winreg.QueryValueEx(key, "MouseSpeed")[0])
             print(acceleration)
             return acceleration == 1
