@@ -3,4 +3,4 @@
 
 <h1> DeAcceleration </h1>
 
-Python tool for checking &amp; automating turning off mouse acceleration on Windows.
+C++ tool for checking &amp; automating turning off mouse acceleration on Windows.
