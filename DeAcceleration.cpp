@@ -26,10 +26,10 @@ LSTATUS RegNotifyChangeKeyValue(
 );
 */
 
-// Used in SystemParametersInfoW
+// Global variable used in SystemParametersInfoW
 int pvParam[3];
 
-// Used to edit registry values.
+// Global variable used to load registry values.
 HKEY hKey;
 
 bool AccelStatus(){
@@ -53,7 +53,7 @@ string RegistryString(const int pvParam[3]){
 bool ZeroAccelerationInRegistry(){
     WCHAR newVal[] = L"0";
     DWORD valLen = (lstrlenW(newVal) + 1) * sizeof(WCHAR);
-    LONG result = RegSetValueEx(
+    LONG error = RegSetValueEx(
         hKey,
         "MouseSpeed",
         0,
@@ -61,8 +61,8 @@ bool ZeroAccelerationInRegistry(){
         (LPBYTE)newVal,
         valLen
     );
-    if(result != ERROR_SUCCESS){
-        std::cerr << "Error setting registry key, exiting.";
+    if(error != ERROR_SUCCESS){
+        std::cerr << "Error setting registry key, returning.";
         return false;
     }
     RegSetValueEx(
@@ -91,66 +91,61 @@ void DisableMouseAccel(){
     
     // Changes registry to reflect above changes.
     ZeroAccelerationInRegistry();
-
 }
 
 int main(){
-    RegOpenKeyEx(
+    // Initial check and change to disable it.
+    if(AccelStatus()){
+            DisableMouseAccel();
+            std::clog << "Attempted initial/startup acceleration set." << endl;
+    }
+
+    LONG error;
+    
+    // Opens the Mouse registry key with SET_VALUE, READ, & NOTIFY access rights. 
+    error = RegOpenKeyEx(
         HKEY_CURRENT_USER,
         "Control Panel\\Mouse",
         0,
-        KEY_SET_VALUE,
+        KEY_SET_VALUE | KEY_READ | KEY_NOTIFY,
         &hKey
     );
+    
+    if (error != ERROR_SUCCESS) {
+        std::cerr << "Error opening registry key: " << error << endl;
+        return 1;
+    }
 
-    if(AccelStatus()){
-        DisableMouseAccel();
+    // Create listening event
+    HANDLE hEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+    if (hEvent == nullptr) {
+        std::cerr << "Error creating event: " << GetLastError() << endl;
+        RegCloseKey(hKey);
+        return 1;
+    }
+
+    // A forever loop since this runs until it's closed.
+    while(true){
+        error = RegNotifyChangeKeyValue(
+            hKey,
+            TRUE,
+            REG_NOTIFY_CHANGE_LAST_SET,
+            hEvent,
+            TRUE
+        );
+        if (error != ERROR_SUCCESS) {
+            std::cerr << "Error creating registry change event" << endl;
+            break;
+        }
+
+        WaitForSingleObject(hEvent, INFINITE);
+        std::clog << "Detected Change" << endl;
+        if(AccelStatus()){
+            DisableMouseAccel();
+            std::clog << "Attempted Acceleration Change." << endl;
+        }
     }
 
     RegCloseKey(hKey);
-
     return 0;
 }
-
-
-// HKEY hKey;
-//     // Open the Mouse Registry
-//     LONG result = RegOpenKeyEx(
-//         HKEY_CURRENT_USER,
-//         "Control Panel\\Mouse",
-//         0,
-//         KEY_NOTIFY,
-//         &hKey
-//     );
-//     if (result != ERROR_SUCCESS) {
-//         std::cerr << "Error opening registry key: " << result << endl;
-//         return 1;
-//     }
-//     // Create listening event
-//     HANDLE hEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-//     if (hEvent == nullptr) {
-//         std::cerr << "Error creating event: " << GetLastError() << endl;
-//         RegCloseKey(hKey);
-//         return 1;
-//     }
-
-//     // A forever loop since this runs until it's closed.
-//     while(true){
-//         result = RegNotifyChangeKeyValue(
-//             hKey,
-//             TRUE,
-//             REG_NOTIFY_CHANGE_LAST_SET,
-//             hEvent,
-//             TRUE
-//         );
-//         if (result != ERROR_SUCCESS) {
-//             std::cerr << "Error creating registry change event" << endl;
-//             break;
-//         }
-
-//         WaitForSingleObject(hEvent, INFINITE);
-        
-//         if(AccelStatus()){
-//             disableMouseAccel();
-//         }
-//     }
